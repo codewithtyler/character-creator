@@ -28,6 +28,8 @@ A Next.js application that generates reference images for LoRA (Low-Rank Adaptat
 
 - Node.js 18+ installed
 - Automatic1111 WebUI installed and running with API enabled
+- Optional: Ollama running locally for prompt engineering (default port 11434)
+- Optional: OpenRouter API key for fallback prompt generation
 
 ### Installation
 
@@ -46,6 +48,12 @@ npm install
 
 ```env
 STABLE_DIFFUSION_API_URL=http://localhost:7860
+
+# Optional prompt generator configuration
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2-vision:11b
+OPENROUTER_API_KEY=your_openrouter_api_key
+OPENROUTER_MODEL=meta-llama/llama-3.2-11b-vision-instruct
 ```
 
 4. Run the development server:
@@ -98,6 +106,7 @@ npm run dev
 - The generated images maintain character consistency through image-to-image generation
 - The `denoising_strength` parameter (0.7) balances between preserving the original image and applying new variations
 - Make sure Automatic1111 WebUI is running and accessible before generating images
+- Prompts are dynamically engineered by Ollama (fallback to OpenRouter) to produce highly detailed instructions for Stable Diffusion
 
 ## Troubleshooting
 

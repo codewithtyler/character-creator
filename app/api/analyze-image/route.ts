@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { buildVisionDescription } from '@/lib/visionDescription'
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,9 +19,9 @@ export async function POST(request: NextRequest) {
     const base64Image = buffer.toString('base64')
     const dataUrl = `data:${imageFile.type};base64,${base64Image}`
 
-    // Basic description - Stable Diffusion img2img will use the image directly
-    // The description is just for the prompt variations
-    const description = 'a person, portrait, high quality'
+    const description = await buildVisionDescription({
+      imageBase64: dataUrl,
+    })
 
     return NextResponse.json({
       imageUrl: dataUrl,

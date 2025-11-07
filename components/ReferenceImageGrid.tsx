@@ -26,15 +26,39 @@ const angles = [
 ]
 
 const outfits = [
-  { key: 'casual', label: 'Casual Outfit', description: 'casual everyday clothing' },
-  { key: 'formal', label: 'Formal Outfit', description: 'formal business or elegant attire' },
-  { key: 'sporty', label: 'Sporty Outfit', description: 'athletic or sportswear' },
+  {
+    key: 'casual',
+    label: 'Casual Outfit',
+    description: 'casual streetwear outfit with fitted tee, light jacket, relaxed jeans',
+  },
+  {
+    key: 'formal',
+    label: 'Formal Outfit',
+    description: 'formal elegant dress, business formal attire, satin fabric',
+  },
+  {
+    key: 'sporty',
+    label: 'Sporty Outfit',
+    description: 'gym clothes, athletic wear, sports bra, athletic leggings, workout outfit',
+  },
 ]
 
 const backgrounds = [
-  { key: 'studio', label: 'Studio', description: 'professional studio background, neutral lighting' },
-  { key: 'outdoor', label: 'Outdoor', description: 'outdoor natural environment, daylight' },
-  { key: 'indoor', label: 'Indoor', description: 'indoor room setting, warm lighting' },
+  {
+    key: 'studio',
+    label: 'Studio',
+    description: 'professional photography studio background, neutral seamless backdrop',
+  },
+  {
+    key: 'outdoor',
+    label: 'Outdoor',
+    description: 'outdoor setting, park or city street, natural daylight, fresh environment',
+  },
+  {
+    key: 'indoor',
+    label: 'Indoor',
+    description: 'indoor room setting with warm lighting, different interior design',
+  },
 ]
 
 export default function ReferenceImageGrid({
@@ -66,67 +90,97 @@ export default function ReferenceImageGrid({
         backgrounds: {},
       }
 
+      const runWithConcurrency = async (
+        tasks: Array<() => Promise<void>>,
+        limit: number
+      ) => {
+        const executing: Promise<void>[] = []
+        for (const task of tasks) {
+          const p = task().finally(() => {
+            const index = executing.indexOf(p)
+            if (index > -1) {
+              executing.splice(index, 1)
+            }
+          })
+          executing.push(p)
+          if (executing.length >= limit) {
+            await Promise.race(executing)
+          }
+        }
+        await Promise.all(executing)
+      }
+
       // Generate base angle views
       setGenerationProgress('Generating angle variations...')
-      for (const angle of angles) {
-        setGenerationProgress(`Generating ${angle.label}...`)
-        const response = await fetch('/api/generate-variation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            baseImage: uploadedImage,
-            personDescription,
-            angle: angle.angle,
-            variationType: 'angle',
-          }),
-        })
+      await runWithConcurrency(
+        angles.map(angle => async () => {
+          setGenerationProgress(`Generating ${angle.label}...`)
+          const response = await fetch('/api/generate-variation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              baseImage: uploadedImage,
+              personDescription,
+              angle: angle.angle,
+              variationType: 'angle',
+            }),
+          })
 
-        if (!response.ok) throw new Error(`Failed to generate ${angle.label}`)
-        const data = await response.json()
-        allImages.angles[angle.key] = data.images
-      }
+          if (!response.ok) throw new Error(`Failed to generate ${angle.label}`)
+          const data = await response.json()
+          allImages.angles[angle.key] = data.images
+        }),
+        2
+      )
 
       // Generate outfit variations (using front-facing as base)
       setGenerationProgress('Generating outfit variations...')
-      for (const outfit of outfits) {
-        setGenerationProgress(`Generating ${outfit.label}...`)
-        const response = await fetch('/api/generate-variation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            baseImage: uploadedImage,
-            personDescription,
-            angle: 'facing forward, front view',
-            outfit: outfit.description,
-            variationType: 'outfit',
-          }),
-        })
+      await runWithConcurrency(
+        outfits.map(outfit => async () => {
+          setGenerationProgress(`Generating ${outfit.label}...`)
+          const response = await fetch('/api/generate-variation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              baseImage: uploadedImage,
+              personDescription,
+              angle: 'facing forward, front view',
+              outfit: outfit.description,
+              variationType: 'outfit',
+            }),
+          })
 
-        if (!response.ok) throw new Error(`Failed to generate ${outfit.label}`)
-        const data = await response.json()
-        allImages.outfits[outfit.key] = data.images
-      }
+          if (!response.ok) throw new Error(`Failed to generate ${outfit.label}`)
+          const data = await response.json()
+          allImages.outfits[outfit.key] = data.images
+        }),
+        2
+      )
 
       // Generate background variations (using front-facing as base)
       setGenerationProgress('Generating background variations...')
-      for (const bg of backgrounds) {
-        setGenerationProgress(`Generating ${bg.label} background...`)
-        const response = await fetch('/api/generate-variation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            baseImage: uploadedImage,
-            personDescription,
-            angle: 'facing forward, front view',
-            background: bg.description,
-            variationType: 'background',
-          }),
-        })
+      await runWithConcurrency(
+        backgrounds.map(bg => async () => {
+          setGenerationProgress(`Generating ${bg.label} background...`)
+          const response = await fetch('/api/generate-variation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              baseImage: uploadedImage,
+              personDescription,
+              angle: 'facing forward, front view',
+              background: bg.description,
+              variationType: 'background',
+            }),
+          })
 
-        if (!response.ok) throw new Error(`Failed to generate ${bg.label} background`)
-        const data = await response.json()
-        allImages.backgrounds[bg.key] = data.images
-      }
+          if (!response.ok)
+            throw new Error(`Failed to generate ${bg.label} background`)
+          const data = await response.json()
+          allImages.backgrounds[bg.key] = data.images
+        }),
+        2
+      )
 
       onImagesGenerated(allImages)
     } catch (error) {

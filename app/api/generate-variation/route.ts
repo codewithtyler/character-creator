@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { buildGenerationPrompt } from '@/lib/promptGenerator'
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,66 +12,74 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Build the prompt based on variation type
-    let prompt = personDescription || 'a person'
+    const generatedPrompt = await buildGenerationPrompt({
+      personDescription,
+      angle,
+      outfit,
+      background,
+      variationType,
+    })
 
-    if (angle) {
-      prompt += `, ${angle}`
-    }
-
-    if (outfit) {
-      prompt += `, wearing ${outfit}`
-    }
-
-    if (background) {
-      prompt += `, ${background}`
-    }
-
-    prompt += ', high quality portrait photography, professional lighting, detailed, 8k resolution, consistent character appearance, photorealistic'
+    const prompt = `${generatedPrompt}, ultra detailed, 8k portrait photography, award-winning photo, realistic skin texture, carefully styled hair`
 
     // Negative prompt to avoid unwanted elements
-    const negativePrompt = 'blurry, low quality, distorted, deformed, extra limbs, bad anatomy, watermark, text, signature'
+    const negativePrompt =
+      'blurry, low quality, distorted, deformed, extra limbs, bad anatomy, deformed hands, extra fingers, missing fingers, backwards thumb, bad hands, inconsistent face, different person, watermark, text, signature, pink button up shirt, identical bedroom background'
 
     // Use Automatic1111 WebUI API
     const sdApiUrl = process.env.STABLE_DIFFUSION_API_URL || 'http://localhost:7860'
 
-    // Generate 2 variations for each category
-    const imagePromises = Array.from({ length: 2 }, async () => {
-      try {
-        // Convert base64 data URL to base64 string
-        const base64Data = baseImage.includes(',') ? baseImage.split(',')[1] : baseImage
+    const base64Data = baseImage.includes(',') ? baseImage.split(',')[1] : baseImage
 
-        const response = await fetch(`${sdApiUrl}/sdapi/v1/img2img`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            prompt,
-            negative_prompt: negativePrompt,
-            init_images: [base64Data],
-            steps: 30,
-            cfg_scale: 7.5,
-            denoising_strength: 0.7, // Balance between original and new
-            sampler_name: 'Euler',
-            width: 1024,
-            height: 1024,
-          }),
-        })
+    let denoisingStrength = 0.75
+    if (variationType === 'outfit' || variationType === 'background') {
+      denoisingStrength = 0.85
+    } else if (variationType === 'angle') {
+      denoisingStrength = 0.78
+    }
 
-        if (!response.ok) {
-          throw new Error(`Stable Diffusion API error: ${response.statusText}`)
-        }
+    const generateImage = async () => {
+      const response = await fetch(`${sdApiUrl}/sdapi/v1/img2img`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          negative_prompt: negativePrompt,
+          init_images: [base64Data],
+          steps: 30,
+          cfg_scale: 7.5,
+          denoising_strength: denoisingStrength,
+          sampler_name: 'Euler',
+          width: 1024,
+          height: 1024,
+        }),
+      })
 
-        const data = await response.json()
-        const imageUrl = data.images?.[0] || null
+      if (!response.ok) {
+        throw new Error(`Stable Diffusion API error: ${response.statusText}`)
+      }
 
-        return imageUrl
-      } catch (error) {
+      const data = await response.json()
+      const imageBase64 = data.images?.[0] || null
+      if (!imageBase64) {
+        throw new Error('Stable Diffusion response did not include an image')
+      }
+
+      if (imageBase64.startsWith('data:')) {
+        return imageBase64
+      }
+
+      return `data:image/png;base64,${imageBase64}`
+    }
+
+    const imagePromises = Array.from({ length: 2 }, () =>
+      generateImage().catch((error) => {
         console.error('Error generating single image:', error)
         return null
-      }
-    })
+      })
+    )
 
     const images = (await Promise.all(imagePromises)).filter(Boolean) as string[]
 
@@ -81,13 +90,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Convert base64 to data URLs
-    const formattedImages = images.map(img => {
-      if (img.startsWith('data:')) return img
-      return `data:image/png;base64,${img}`
-    })
-
-    return NextResponse.json({ images: formattedImages })
+    return NextResponse.json({ images })
   } catch (error: any) {
     console.error('Error generating variation:', error)
     return NextResponse.json(
