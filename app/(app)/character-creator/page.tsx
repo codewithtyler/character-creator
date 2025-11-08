@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import ImageUpload from '@/components/ImageUpload'
 import ReferenceImageGrid from '@/components/ReferenceImageGrid'
+import FeatureGate from '@/components/FeatureGate'
 
 export type ReferenceImageState = {
   uploadedImage: string | null
@@ -16,7 +17,7 @@ export type ReferenceImageState = {
   currentStep: 'upload' | 'generating' | 'complete'
 }
 
-export default function Home() {
+export default function CharacterCreatorPage() {
   const [state, setState] = useState<ReferenceImageState>({
     uploadedImage: null,
     personDescription: '',
@@ -69,15 +70,17 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-5xl font-bold text-center text-white mb-2">
-          LoRA Reference Generator
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold text-white mb-2">
+          Character Creator
         </h1>
-        <p className="text-center text-purple-200 mb-8">
+        <p className="text-purple-200">
           Upload a character image and generate reference images from all angles with different outfits and backgrounds
         </p>
+      </div>
 
+      <FeatureGate feature="character_creator">
         {state.currentStep === 'upload' ? (
           <ImageUpload
             onImageUploaded={handleImageUploaded}
@@ -94,7 +97,8 @@ export default function Home() {
             onNewUpload={handleNewUpload}
           />
         )}
-      </div>
-    </main>
+      </FeatureGate>
+    </div>
   )
 }
+
